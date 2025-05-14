@@ -1,0 +1,88 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <DHT.h>
+
+// ========== DS18B20 ==========
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature ds18b20(&oneWire);
+
+// ========== DHT11 ==========
+#define DHTPIN 17
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+// ========== MQ-135 ==========
+#define MQ135_PIN 32  // Brug en rigtig ADC-kompatibel pin på ESP32
+int smokeThreshold = 400; // Denne skal kalibreres senere
+
+// Funktion til at lave en mere stabil måling
+int readSmokeSensor(int pin) {
+  long sum = 0;
+  const int samples = 10;
+  for (int i = 0; i < samples; i++) {
+    sum += analogRead(pin);
+    delay(10); // Lille delay mellem målinger
+  }
+  return sum / samples;
+}
+
+// Funktion til at udskrive tid siden opstart
+void printElapsedTime() {
+  unsigned long ms = millis();
+  unsigned long totalSeconds = ms / 1000;
+  unsigned int hours = totalSeconds / 3600;
+  unsigned int minutes = (totalSeconds % 3600) / 60;
+  unsigned int seconds = totalSeconds % 60;
+
+  // Print i HH:MM:SS format
+  Serial.printf("%02d:%02d:%02d ", hours, minutes, seconds);
+  Serial.print("Elapsed Time: ");
+  Serial.print(hours); Serial.print("h ");
+  Serial.print(minutes); Serial.print("m ");
+  Serial.print(seconds); Serial.println("s");
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize sensors
+  ds18b20.begin();
+  dht.begin();
+
+  pinMode(MQ135_PIN, INPUT);
+  delay(2000);  // Lad sensorer stabilisere sig
+}
+
+void loop() {
+  Serial.println("=== Sensor Readings ===");
+
+  // --- DS18B20 ---
+  ds18b20.requestTemperatures();
+  float temp_DS18B20 = ds18b20.getTempCByIndex(0);
+  Serial.print("DS18B20 Temp: ");
+  Serial.print(temp_DS18B20);
+  Serial.println(" °C");
+
+  // --- DHT11 ---
+  float temp_DHT = dht.readTemperature();
+  float humidity = dht.readHumidity();
+  Serial.print("DHT11 Temp: ");
+  Serial.print(temp_DHT);
+  Serial.print(" °C, Humidity: ");
+  Serial.print(humidity);
+  Serial.println(" %");
+
+  // --- MQ-135 ---
+  int smokeValue = readSmokeSensor(MQ135_PIN);
+  Serial.print("MQ-135 Value: ");
+  Serial.println(smokeValue);
+
+  if (smokeValue > smokeThreshold) {
+    Serial.println("Warning: Air pollution detected!");
+  }
+
+  Serial.println("-------------------------");
+  printElapsedTime();
+  delay(1000);  // Vent før næste måling
+}

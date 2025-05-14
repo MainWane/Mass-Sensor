@@ -1,0 +1,20 @@
+#include <DallasTemperature.h>
+#include <OneWire.h>
+#include <Arduino.h>
+
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature ds18b20(&oneWire);
+void setup() {
+	Serial.begin(9600);
+	ds18b20.begin();
+}
+
+void loop() {
+	ds18b20.requestTemperatures();
+	float temp_DS18B20 = ds18b20.getTempCByIndex(0);
+	Serial.print("DS18B20 Temp: ");
+	Serial.print(temp_DS18B20);
+	Serial.println(" °C");
+	delay(1000);
+}

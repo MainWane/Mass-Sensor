@@ -1,0 +1,66 @@
+#include <Arduino.h>
+#include <DHT.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// --- DHT11 Setup ---
+#define DHTPIN 17
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+// --- MQ135 Gas Sensor ---
+const int mq135Pin = 35; // Analog-capable pin on ESP32
+
+// --- DS18B20 Setup ---
+#define ONE_WIRE_BUS 16  // GPIO16 (change to your pin)
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature ds18b20(&oneWire);
+
+// --- Setup ---
+void setup() {
+  Serial.begin(9600);
+  delay(1000); // Let sensors stabilize
+
+  // Init sensors
+  dht.begin();
+  ds18b20.begin();
+
+  pinMode(mq135Pin, INPUT);
+}
+
+// --- Main Loop ---
+void loop() {
+  // --- Read MQ135 ---
+  int gasValue = analogRead(mq135Pin);
+  Serial.print("MQ135 Gas Sensor (analog): ");
+  Serial.println(gasValue);
+
+  // --- Read DHT11 ---
+  float dhtTemp = dht.readTemperature();
+  float dhtHum = dht.readHumidity();
+
+  if (isnan(dhtTemp) || isnan(dhtHum)) {
+    Serial.println("Failed to read from DHT11 sensor.");
+  } else {
+    Serial.print("DHT11 Temp: ");
+    Serial.print(dhtTemp);
+    Serial.print(" °C  |  Humidity: ");
+    Serial.print(dhtHum);
+    Serial.println(" %");
+  }
+
+  // --- Read DS18B20 ---
+  ds18b20.requestTemperatures();
+  float dsTemp = ds18b20.getTempCByIndex(0);
+  
+  if (dsTemp == DEVICE_DISCONNECTED_C) {
+    Serial.println("Failed to read from DS18B20 sensor.");
+  } else {
+    Serial.print("DS18B20 Temp: ");
+    Serial.print(dsTemp);
+    Serial.println(" °C");
+  }
+
+  Serial.println("----------------------------");
+  delay(2000); // Wait between readings
+}

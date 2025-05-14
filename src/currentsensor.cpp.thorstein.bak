@@ -1,0 +1,71 @@
+#include <LiquidCrystal_I2C.h>
+#include <Arduino.h>
+
+const int sensorIn = 34;  // ACS712 output connected to ESP32 GPIO 34
+const int mVperAmp = 185; // Sensitivity for ACS712 (5A version)
+const float supplyVoltage = 5.0; // Supply voltage for the motor
+const float sensorVoltage = 5.0; // Voltage powering ACS712 (Change to 3.3 if needed)
+const int numSamples = 10; // Number of samples for ADC averaging
+
+float current = 0;
+float power = 0;
+
+// Initialize LCD with I2C address and size
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+    Serial.begin(9600);
+    Serial.println("DC Motor Current Monitor");
+
+    // Set ADC resolution to 12-bit (0-4095)
+    analogReadResolution(12);
+
+    // Initialize LCD
+    lcd.init();
+    lcd.backlight();
+    lcd.print("DC Motor Monitor");
+    delay(1000);
+    lcd.clear();
+}
+
+void loop() {
+    // Read multiple samples to reduce noise
+    float sum = 0;
+    for (int i = 0; i < numSamples; i++) {
+        sum += analogRead(sensorIn);
+        delay(2);
+    }
+    int sensorValue = sum / numSamples; // Compute the average
+
+    // Convert ADC value to voltage (ESP32 ADC is 0-3.3V with 12-bit resolution)
+    float voltage = (sensorValue * 3.3) / 4095.0;
+
+    // Midpoint voltage (0A current) depends on ACS712 supply voltage
+    float zeroCurrentVoltage = sensorVoltage / 2.0;  // 2.5V if powered by 5V, 1.65V if powered by 3.3V
+
+    // Convert voltage to current
+    current = (voltage - zeroCurrentVoltage) * (1000.0 / mVperAmp);
+
+    // Calculate power (P = V * I)
+    power = supplyVoltage * current;
+
+    // Display results on Serial Monitor
+    Serial.print("Current: ");
+    Serial.print(current, 3); // Display current with three decimal places
+    Serial.print(" A | Power: ");
+    Serial.print(power, 3); // Display power with three decimal places
+    Serial.println(" W");
+
+    // Display results on LCD
+    lcd.setCursor(0, 0);
+    lcd.print("Current: ");
+    lcd.print(current, 3);
+    lcd.print(" A");
+
+    lcd.setCursor(0, 1);
+    lcd.print("Power: ");
+    lcd.print(power, 3);
+    lcd.print(" W");
+
+    delay(500);
+}

@@ -1,0 +1,67 @@
+#include <Arduino.h>
+#include <DHT.h>
+
+// Smoke sensor
+int smokeA0 = 4;
+int sensorThres = 700;
+int ledPin = 2;
+
+// DHT11 sensor
+#define DHTPIN 17         // Pin where DHT11 is connected
+#define DHTTYPE DHT11     // DHT 11
+DHT dht(DHTPIN, DHTTYPE);
+
+// Motor control (via H-bridge)
+int motorPin1 = 12;
+int motorPin2 = 14;
+float tempThreshold = 25.5; // Temperature threshold in Celsius
+
+void setup() {
+  pinMode(ledPin, OUTPUT);
+  pinMode(smokeA0, INPUT);
+
+  pinMode(motorPin1, OUTPUT);
+  pinMode(motorPin2, OUTPUT);
+
+  dht.begin();
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Smoke detection
+  int analogSensor = analogRead(smokeA0);
+  Serial.print("Pin A0 (Smoke): ");
+  Serial.println(analogSensor);
+
+  if (analogSensor > sensorThres) {
+    Serial.println("Højt røgtniveau, advarselslampe blinker");
+    digitalWrite(ledPin, HIGH);
+    delay(250);
+    digitalWrite(ledPin, LOW);
+    delay(250);
+  } else { 
+    digitalWrite(ledPin, LOW);
+    delay(500);
+  }
+
+  // Temperature check
+  float temperature = dht.readTemperature();
+  if (isnan(temperature)) {
+    Serial.println("Fejl ved læsning af temperatur");
+  } else {
+    Serial.print("Temperatur: ");
+    Serial.print(temperature);
+    Serial.println(" °C");
+
+    if (temperature > tempThreshold) {
+      Serial.println("Temperaturen er over 25°C, motor aktiveres");
+      digitalWrite(motorPin1, HIGH);
+      digitalWrite(motorPin2, LOW);  // Motor rotates in one direction
+    } else {
+      digitalWrite(motorPin1, LOW);
+      digitalWrite(motorPin2, LOW);  // Motor off
+    }
+  }
+
+  delay(2000); // Delay between temperature readings
+}

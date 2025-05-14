@@ -1,0 +1,87 @@
+#include <Wire.h>
+#include <Adafruit_INA219.h>
+
+Adafruit_INA219 ina219;
+
+const int relayPin = 27; // GPIO pin til relæ
+
+const unsigned long sampleInterval = 1000;     // måling hvert sekund
+const unsigned long printInterval = 10000;     // udskriv hvert 10. sekund
+const int avgSamples = 10;                     // antal samples til gennemsnit
+const unsigned long relayToggleInterval = 20000; // skift relæ hvert 20. sekund
+
+unsigned long lastSampleTime = 0;
+unsigned long lastPrintTime = 0;
+unsigned long lastRelayToggleTime = 0;
+
+bool relayState = false;
+
+float energy_Wh = 0.0;
+float voltageSum = 0.0;
+float currentSum = 0.0;
+int sampleCount = 0;
+
+float lastAvgPower = 0.0; // til at vise øjeblikkelig effekt
+
+void setup() {
+  Serial.begin(9600);
+  Wire.begin();
+
+  if (!ina219.begin()) {
+    Serial.println("INA219 ikke fundet. Check forbindelser.");
+    while (1);
+  }
+
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(relayPin, LOW); // start slukket
+  relayState = false;
+
+  Serial.println("System startet. Relæ toggler hver 5. sekund.");
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  // Tag måling hvert sekund
+  if (currentMillis - lastSampleTime >= sampleInterval) {
+    lastSampleTime = currentMillis;
+
+    float voltage = ina219.getBusVoltage_V();
+    float current = ina219.getCurrent_mA() / 1000.0; // A
+
+    voltageSum += voltage;
+    currentSum += current;
+    sampleCount++;
+
+    if (sampleCount >= avgSamples) {
+      float avgVoltage = voltageSum / sampleCount;
+      float avgCurrent = currentSum / sampleCount;
+      lastAvgPower = avgVoltage * avgCurrent;
+
+      float periodHours = (sampleInterval * avgSamples) / 3600000.0;
+      energy_Wh += lastAvgPower * periodHours;
+
+      voltageSum = 0.0;
+      currentSum = 0.0;
+      sampleCount = 0;
+    }
+  }
+
+  // Udskriv resultater hvert 10. sekund
+  if (currentMillis - lastPrintTime >= printInterval) {
+    lastPrintTime = currentMillis;
+    Serial.print("Effekt (W): ");
+    Serial.print(lastAvgPower, 4);
+    Serial.print(" | Energi (kWh): ");
+    Serial.println(energy_Wh / 1000.0, 6);
+  }
+
+  // Skift relætilstand hver 5. sekund
+  if (currentMillis - lastRelayToggleTime >= relayToggleInterval) {
+    lastRelayToggleTime = currentMillis;
+    relayState = !relayState;
+    digitalWrite(relayPin, relayState ? HIGH : LOW);
+    Serial.print("Relæ ");
+    Serial.println(relayState ? "TÆNDT" : "SLUKKET");
+  }
+}

@@ -1,0 +1,84 @@
+#include <Wire.h>
+#include <Adafruit_INA219.h>
+
+Adafruit_INA219 ina219;
+
+const int relayPin = 27; // GPIO pin til relæ
+
+const unsigned long sampleInterval = 1000;     // måling hvert sekund
+const unsigned long printInterval = 10000;     // udskriv hvert 10. sekund
+const int avgSamples = 10;                     // antal samples til gennemsnit
+
+unsigned long lastSampleTime = 0;
+unsigned long lastPrintTime = 0;
+
+float energy_Wh = 0.0;
+
+float voltageSum = 0.0;
+float currentSum = 0.0;
+int sampleCount = 0;
+
+float lastAvgPower = 0.0; // til at vise øjeblikkelig effekt
+
+void setup() {
+  Serial.begin(9600);
+  Wire.begin();
+
+  if (!ina219.begin()) {
+    Serial.println("INA219 ikke fundet. Check forbindelser.");
+    while (1);
+  }
+
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(relayPin, LOW); // start slukket
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  // Tag måling hvert sekund
+  if (currentMillis - lastSampleTime >= sampleInterval) {
+    lastSampleTime = currentMillis;
+
+    float voltage = ina219.getBusVoltage_V();
+    float current = ina219.getCurrent_mA() / 1000.0; // A
+
+    voltageSum += voltage;
+    currentSum += current;
+    sampleCount++;
+
+    // Når nok samples er taget, så beregn gennemsnit og akkumuler energi
+    if (sampleCount >= avgSamples) {
+      float avgVoltage = voltageSum / sampleCount;
+      float avgCurrent = currentSum / sampleCount;
+      lastAvgPower = avgVoltage * avgCurrent; // gem øjeblikkelig effekt
+
+      // Akkumuler energi i Wh
+      float periodHours = (sampleInterval * avgSamples) / 3600000.0;
+      energy_Wh += lastAvgPower * periodHours;
+
+      // Nulstil akkumulatorer
+      voltageSum = 0.0;
+      currentSum = 0.0;
+      sampleCount = 0;
+    }
+  }
+
+  // Udskriv resultater hvert 10. sekund
+  if (currentMillis - lastPrintTime >= printInterval) {
+    lastPrintTime = currentMillis;
+
+    Serial.print("Effekt (W): ");
+    Serial.print(lastAvgPower, 4);
+    Serial.print(" | Energi (kWh): ");
+    Serial.println(energy_Wh / 1000.0, 6); // høj opløsning
+  }
+
+   // Relækontrol baseret på effekt
+   if (lastAvgPower > 4.0) {
+    digitalWrite(relayPin, LOW); // Sluk relæ ved > 4 watt
+  } else {
+    digitalWrite(relayPin, HIGH); // Tænd relæ
+  }
+
+}

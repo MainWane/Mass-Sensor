@@ -1,0 +1,92 @@
+#include <DHT.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+
+// ==== Pin Definitions ====
+#define DHTPIN 17
+#define DHTTYPE DHT11
+#define ONE_WIRE_BUS 4
+#define SEALEVELPRESSURE_HPA (1013.25)
+
+// ==== Sensor Objects ====
+DHT dht(DHTPIN, DHTTYPE);
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+Adafruit_BME280 bme; // I2C
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+  sensors.begin();
+  
+  if (!bme.begin(0x77)) { // Prøv 0x77 hvis 0x76 ikke virker
+    Serial.println("Kunne ikke finde BME280 sensor!");
+    while (1);
+  }
+}
+
+void loop() {
+  // ==== DHT11 ====
+  float humidityDHT = dht.readHumidity();
+  float temperatureDHT = dht.readTemperature();
+
+  // ==== DS18B20 ====
+  sensors.requestTemperatures();
+  float temperatureDS18B20 = sensors.getTempCByIndex(0);
+
+  // ==== BME280 (GY-BME280) ====
+  float temperatureBME = bme.readTemperature();
+  float humidityBME = bme.readHumidity();
+  float pressure = bme.readPressure() / 100.0F; // hPa
+
+  // ==== Fejlhåndtering ====
+  if (isnan(temperatureDHT) || isnan(temperatureDS18B20) || isnan(temperatureBME)) {
+    Serial.println("Fejl i temperaturmåling");
+    delay(2000);
+    return;
+  }
+
+  // ==== Temperaturfusion (gennemsnit af alle tre) ====
+  float combinedTemp = (temperatureDHT + temperatureDS18B20 + temperatureBME) / 3.0;
+
+  // ==== Fugtighedsfusion (gennemsnit af DHT11 og BME280) ====
+  float combinedHumidity = (humidityDHT + humidityBME) / 2.0;
+
+  // ==== Vis data ====
+  Serial.print("Fugtighed (DHT11): ");
+  Serial.print(humidityDHT);
+  Serial.print(" %\t");
+
+  Serial.print("Fugtighed (BME280): ");
+  Serial.print(humidityBME);
+  Serial.print(" %\t");
+
+  Serial.print("Kombineret Fugtighed: ");
+  Serial.print(combinedHumidity);
+  Serial.print(" %\t");
+
+  Serial.print("Temperatur (DHT11): ");
+  Serial.print(temperatureDHT);
+  Serial.print(" *C\t");
+
+  Serial.print("Temperatur (DS18B20): ");
+  Serial.print(temperatureDS18B20);
+  Serial.print(" *C\t");
+
+  Serial.print("Temperatur (BME280): ");
+  Serial.print(temperatureBME);
+  Serial.print(" *C\t");
+
+  Serial.print("Kombineret Temperatur: ");
+  Serial.print(combinedTemp);
+  Serial.print(" *C\t");
+
+  Serial.print("Lufttryk: ");
+  Serial.print(pressure);
+  Serial.println(" hPa");
+
+  delay(2000);
+}
