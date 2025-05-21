@@ -1,101 +1,27 @@
-#include <Wire.h>
-#include <Adafruit_INA219.h>
+#include <Arduino.h>
 
-Adafruit_INA219 ina219;
-
-const int relayPin = 27;
-const int yellowLEDPin = 35;
-const int redLEDPin = 32;
-
-const unsigned long sampleInterval = 1000;  // 1 sekund
-const unsigned long printInterval = 10000;  // 10 sekunder
-const int avgSamples = 10;
-
-unsigned long lastSampleTime = 0;
-unsigned long lastPrintTime = 0;
-
-float energy_Wh = 0.0;
-
-float voltageSum = 0.0;
-float currentSum = 0.0;
-int sampleCount = 0;
-
-float lastAvgPower = 0.0;
-float lastAvgCurrent = 0.0;
-
-bool emergencyShutdown = false;
-
+#define BUTTON_PIN 4 // GIOP33 pin connected to button
+#define LED_PIN 17 // GIOP21 pin connected to LED
 void setup() {
+  // initialize serial communication at 9600 bits per second:
   Serial.begin(9600);
-  Wire.begin();
-
-  if (!ina219.begin()) {
-    Serial.println("INA219 ikke fundet. Check forbindelser.");
-    while (1);
-  }
-
-  pinMode(relayPin, OUTPUT);
-  pinMode(yellowLEDPin, OUTPUT);
-  pinMode(redLEDPin, OUTPUT);
-
-  digitalWrite(relayPin, HIGH); // start med relæet tændt
-  digitalWrite(yellowLEDPin, LOW);
-  digitalWrite(redLEDPin, LOW);
+  // initialize the pushbutton pin as an pull-up input
+  // the pull-up input pin will be HIGH when the switch is open and LOW when the switch is closed.
+  pinMode(BUTTON_PIN, INPUT_PULLDOWN);
+  pinMode(LED_PIN, OUTPUT);
 }
 
 void loop() {
-  unsigned long currentMillis = millis();
+  // read the state of the switch/button:
+  int buttonState = digitalRead(BUTTON_PIN);
 
-  if (currentMillis - lastSampleTime >= sampleInterval) {
-    lastSampleTime = currentMillis;
+  // print out the button's state
+  Serial.println(buttonState);
 
-    float voltage = ina219.getBusVoltage_V();
-    float current = ina219.getCurrent_mA() / 1000.0; // A
-
-    voltageSum += voltage;
-    currentSum += current;
-    sampleCount++;
-
-    if (sampleCount >= avgSamples) {
-      float avgVoltage = voltageSum / sampleCount;
-      float avgCurrent = currentSum / sampleCount;
-      lastAvgPower = avgVoltage * avgCurrent;
-      lastAvgCurrent = avgCurrent;
-
-      float periodHours = (sampleInterval * avgSamples) / 3600000.0;
-      energy_Wh += lastAvgPower * periodHours;
-
-      voltageSum = 0.0;
-      currentSum = 0.0;
-      sampleCount = 0;
-
-      // Advarsels- og nødstoplogik
-      if (avgCurrent > 1.5) {
-        emergencyShutdown = true;
-        Serial.println("!!! NØDSTOP AKTIVERET: Strøm > 1.5A");
-      }
-    }
-  }
-
-  if (currentMillis - lastPrintTime >= printInterval) {
-    lastPrintTime = currentMillis;
-
-    Serial.print("Effekt (W): ");
-    Serial.print(lastAvgPower, 4);
-    Serial.print(" | Energi (kWh): ");
-    Serial.print(energy_Wh / 1000.0, 6);
-    Serial.print(" | Strøm (A): ");
-    Serial.println(lastAvgCurrent, 4);
-  }
-
-  // LED og relæ styring
-  if (emergencyShutdown) {
-    digitalWrite(relayPin, LOW);           // Sluk relæ
-    digitalWrite(redLEDPin, HIGH);         // Tænd rød LED
-    digitalWrite(yellowLEDPin, LOW);       // Gul LED irrelevant
+  // if the button is pressed (LOW), turn on the LED
+  if (buttonState == LOW) {
+    digitalWrite(LED_PIN, LOW);
   } else {
-    digitalWrite(relayPin, HIGH);          // Hold relæ tændt
-    digitalWrite(redLEDPin, lastAvgCurrent > 1.2 ? HIGH : LOW);
-    digitalWrite(yellowLEDPin, lastAvgCurrent > 0.7 ? HIGH : LOW);
+    digitalWrite(LED_PIN, HIGH);
   }
 }

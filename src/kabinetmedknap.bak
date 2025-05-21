@@ -1,0 +1,109 @@
+#include <Wire.h>
+#include <Adafruit_INA219.h>
+
+Adafruit_INA219 ina219;
+
+#define BUTTON_PIN 4
+const int relayPin = 27;
+const int yellowLEDPin = 35;
+const int redLEDPin = 32;
+
+const unsigned long sampleInterval = 1000;
+const unsigned long printInterval = 10000;
+const int avgSamples = 10;
+
+unsigned long lastSampleTime = 0;
+unsigned long lastPrintTime = 0;
+
+float energy_Wh = 0.0;
+
+float voltageSum = 0.0;
+float currentSum = 0.0;
+int sampleCount = 0;
+
+float lastAvgPower = 0.0;
+float lastAvgCurrent = 0.0;
+
+bool emergencyShutdown = false;
+bool manualRelayState = true; // Bruges kun hvis nødstop ikke er aktivt
+
+void setup() {
+  Serial.begin(9600);
+  Wire.begin();
+
+  if (!ina219.begin()) {
+    Serial.println("INA219 ikke fundet. Check forbindelser.");
+    while (1);
+  }
+
+  pinMode(relayPin, OUTPUT);
+  pinMode(yellowLEDPin, OUTPUT);
+  pinMode(redLEDPin, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLDOWN);
+
+  digitalWrite(relayPin, HIGH); // start med relæ TIL
+  digitalWrite(yellowLEDPin, LOW);
+  digitalWrite(redLEDPin, LOW);
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  // Tag prøver og beregn gennemsnit
+  if (currentMillis - lastSampleTime >= sampleInterval) {
+    lastSampleTime = currentMillis;
+
+    float voltage = ina219.getBusVoltage_V();
+    float current = ina219.getCurrent_mA() / 1000.0;
+
+    voltageSum += voltage;
+    currentSum += current;
+    sampleCount++;
+
+    if (sampleCount >= avgSamples) {
+      float avgVoltage = voltageSum / sampleCount;
+      float avgCurrent = currentSum / sampleCount;
+      lastAvgPower = avgVoltage * avgCurrent;
+      lastAvgCurrent = avgCurrent;
+
+      float periodHours = (sampleInterval * avgSamples) / 3600000.0;
+      energy_Wh += lastAvgPower * periodHours;
+
+      voltageSum = 0.0;
+      currentSum = 0.0;
+      sampleCount = 0;
+
+      if (avgCurrent > 1.5) {
+        emergencyShutdown = true;
+        Serial.println("!!! NØDSTOP AKTIVERET: Strøm > 1.5A");
+      }
+    }
+  }
+
+  // Print data
+  if (currentMillis - lastPrintTime >= printInterval) {
+    lastPrintTime = currentMillis;
+
+    Serial.print("Effekt (W): ");
+    Serial.print(lastAvgPower, 4);
+    Serial.print(" | Energi (kWh): ");
+    Serial.print(energy_Wh / 1000.0, 6);
+    Serial.print(" | Strøm (A): ");
+    Serial.println(lastAvgCurrent, 4);
+  }
+
+  // Knapstyring (kun hvis ikke nødstop)
+  if (!emergencyShutdown) {
+    if (digitalRead(BUTTON_PIN) == HIGH) {
+      manualRelayState = !manualRelayState; // toggle
+      delay(200); // debounce
+    }
+    digitalWrite(relayPin, manualRelayState ? HIGH : LOW);
+  } else {
+    digitalWrite(relayPin, LOW);
+  }
+
+  // LED-styring
+  digitalWrite(redLEDPin, emergencyShutdown ? HIGH : LOW);
+  digitalWrite(yellowLEDPin, (!emergencyShutdown && lastAvgCurrent > 0.7) ? HIGH : LOW);
+}
