@@ -151,6 +151,6 @@ void loop() {
     Serial.print(" | Energi (Wh): ");
     Serial.println(energy_Wh, 4);
     }
-    // RELÆ ER ALTID TÆNDT
-    digitalWrite(relayPin, HIGH);
+    // Relæ er slukket per default
+    digitalWrite(relayPin, LOW);
 }
