@@ -1,0 +1,86 @@
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include <Adafruit_BMP280.h>
+
+Adafruit_MPU6050 mpu;
+Adafruit_BMP280 bmp;
+
+void setup(void) {
+  Serial.begin(9600);
+
+  // Prøv at initialisere MPU6050
+  if (!mpu.begin(0x68)) {
+    Serial.println("Kunne ikke finde MPU6050-chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 fundet!");
+
+  // Initialiser BMP280
+  if (!bmp.begin(0x76)) {
+    Serial.println("Kunne ikke finde BMP280-chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("BMP280 fundet!");
+
+  // Indstil MPU6050 parametre
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  delay(50);
+
+  // Indstil BMP280 sampling
+  bmp.setSampling(
+    Adafruit_BMP280::MODE_NORMAL,
+    Adafruit_BMP280::SAMPLING_X2,    // temp
+    Adafruit_BMP280::SAMPLING_X16,   // pressure
+    Adafruit_BMP280::FILTER_X16,
+    Adafruit_BMP280::STANDBY_MS_500
+  );
+}
+
+void loop() {
+  // MPU6050 data
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  Serial.print("Acceleration X: ");
+  Serial.print(a.acceleration.x);
+  Serial.print(", Y: ");
+  Serial.print(a.acceleration.y);
+  Serial.print(", Z: ");
+  Serial.print(a.acceleration.z);
+  Serial.println(" m/s^2");
+
+  Serial.print("Rotation X: ");
+  Serial.print(g.gyro.x);
+  Serial.print(", Y: ");
+  Serial.print(g.gyro.y);
+  Serial.print(", Z: ");
+  Serial.print(g.gyro.z);
+  Serial.println(" rad/s");
+
+  Serial.print("MPU Temperatur: ");
+  Serial.print(temp.temperature);
+  Serial.println(" °C");
+
+  // BMP280 data
+  Serial.print("BMP Temperatur: ");
+  Serial.print(bmp.readTemperature());
+  Serial.println(" °C");
+
+  Serial.print("Tryk: ");
+  Serial.print(bmp.readPressure() / 100.0); // hPa
+  Serial.println(" hPa");
+
+  Serial.print("Beregnet højde: ");
+  Serial.print(bmp.readAltitude(1013.25)); // Juster dette efter din lokale tryk
+  Serial.println(" m");
+
+  Serial.println("------------------------");
+  delay(600);
+}

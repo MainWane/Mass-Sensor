@@ -1,0 +1,15 @@
+#include <Arduino.h>
+
+const int mosfetPin = 4;  // Juster til den GPIO du bruger til MOSFET-gaten
+
+void setup() {
+  pinMode(mosfetPin, OUTPUT);
+  digitalWrite(mosfetPin, LOW); // Start slukket (MOSFET lukket)
+}
+
+void loop() {
+  digitalWrite(mosfetPin, HIGH);  // Tænd LED (MOSFET leder)
+  delay(1000);                    // Vent 1 sekund
+  digitalWrite(mosfetPin, LOW);   // Sluk LED
+  delay(1000);
+}
