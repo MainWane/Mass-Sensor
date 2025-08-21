@@ -1,8 +1,45 @@
-#include <Arduino.h>
+#include "BMP280.h"
+#include "Wire.h"
+
+#define P0 1013.25     // Standardtryk ved havniveau
+#define INTERVAL 5000  // 5 sekunder
+
+BMP280 bmp;
 
 void setup() {
-  Serial.begin(115200);
-  Serial.println("Reset test OK");
+  Serial.begin(9600);
+  if (!bmp.begin()) {
+    Serial.println("BMP init failed!");
+    while (1);
+  } else {
+    Serial.println("BMP init success!");
+  }
+
+  bmp.setOversampling(4);
 }
 
-void loop() {}
+void loop() {
+  double T, P;
+  char result = bmp.startMeasurment();
+
+  if (result != 0) {
+    delay(result);
+    result = bmp.getTemperatureAndPressure(T, P);
+
+    if (result != 0) {
+      // Beregn højde manuelt baseret på barometrisk formel
+      double A = 44330.0 * (1.0 - pow(P / P0, 0.1903));
+
+      Serial.print("T = \t"); Serial.print(T, 2); Serial.print(" degC\t");
+      Serial.print("P = \t"); Serial.print(P, 2); Serial.print(" mBar\t");
+      Serial.print("A = \t"); Serial.print(A, 2); Serial.println(" m");
+
+    } else {
+      Serial.println("Error: kunne ikke hente temperatur og tryk.");
+    }
+  } else {
+    Serial.println("Error: kunne ikke starte måling.");
+  }
+
+  delay(INTERVAL);
+}
